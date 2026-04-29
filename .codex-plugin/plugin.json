@@ -1,0 +1,42 @@
+{
+  "name": "run-to-completion",
+  "version": "0.1.0",
+  "description": "Run long-horizon Codex tasks through a resumable progress-tracked workflow.",
+  "author": {
+    "name": "Masaki Komagata",
+    "email": "komagata@gmail.com",
+    "url": "https://github.com/komagata"
+  },
+  "homepage": "https://github.com/komagata/run-to-completion",
+  "repository": "https://github.com/komagata/run-to-completion",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "skill",
+    "long-running",
+    "automation",
+    "progress",
+    "resume"
+  ],
+  "skills": "./run-to-completion/",
+  "interface": {
+    "displayName": "Run To Completion",
+    "shortDescription": "Run long tasks with resumable progress tracking",
+    "longDescription": "A Codex plugin and skill for long-running goals. It adds a slash command entry point and a reusable skill that tracks phase progress, estimates, resume state, live dashboard files, and stop conditions.",
+    "developerName": "Masaki Komagata",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/komagata/run-to-completion",
+    "privacyPolicyURL": "https://github.com/komagata/run-to-completion",
+    "termsOfServiceURL": "https://github.com/komagata/run-to-completion",
+    "defaultPrompt": [
+      "Use /run-to-completion to work through a long task with progress tracking."
+    ],
+    "screenshots": [],
+    "brandColor": "#2563EB"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "run-to-completion",
+  "interface": {
+    "displayName": "Run To Completion"
+  },
+  "plugins": [
+    {
+      "name": "run-to-completion",
+      "source": {
+        "source": "local",
+        "path": "."
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Coding"
+    }
+  ]
+}

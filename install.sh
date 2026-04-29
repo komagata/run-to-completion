@@ -8,6 +8,7 @@ codex_home="${CODEX_HOME:-$HOME/.codex}"
 skills_dir="$codex_home/skills"
 skill_link="$skills_dir/run-to-completion"
 skill_source="$repo_dir/run-to-completion"
+plugin_registered=0
 
 log() {
   printf '%s\n' "$*"
@@ -63,14 +64,36 @@ else
   log "Symlink failed; copied Codex skill to: $skill_link"
 fi
 
+if command -v codex >/dev/null 2>&1; then
+  log "Registering Codex plugin marketplace: $repo_dir"
+  if ! codex plugin marketplace add "$repo_dir"; then
+    log "warning: Codex plugin registration failed. Update Codex CLI, then run this installer again to enable /run-to-completion."
+  else
+    plugin_registered=1
+  fi
+else
+  log "Codex CLI was not found; skipped plugin marketplace registration."
+fi
+
 log ""
 log "run-to-completion is installed."
 log ""
 log "Codex skill path:"
 log "  $skill_link"
 log ""
-log "Start it in Codex with a normal prompt, not a slash command:"
-log "  Use run-to-completion. Goal: <your goal>"
+if [ "$plugin_registered" = "1" ]; then
+  log "Start it in Codex with:"
+  log "  /run-to-completion <your goal>"
+  log ""
+  log "You can also force-load the skill with:"
+  log "  /use run-to-completion"
+else
+  log "Start it in Codex by force-loading the skill:"
+  log "  /use run-to-completion"
+  log ""
+  log "After plugin registration succeeds, this slash command will also work:"
+  log "  /run-to-completion <your goal>"
+fi
 log ""
 log "Claude Code import:"
 log "  @$skill_source/CLAUDE.md"
