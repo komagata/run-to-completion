@@ -8,6 +8,7 @@ It is designed for tasks such as overnight coding work, research passes, perform
 
 - Elicits missing inputs when invoked without arguments.
 - Defines success criteria before substantial work starts.
+- Maintains a visible phase plan with active phase, completed work, remaining work, and estimate confidence.
 - Repeats an `inspect -> act -> verify -> record` loop by default.
 - Records durable progress in `.run-to-completion/state.md` and `.run-to-completion/log.md`.
 - Gives the next agent enough context to resume after context compaction, token limits, or a restarted session.
@@ -84,6 +85,18 @@ During work, the agent creates files in the target project:
 ```
 
 On resume, the next agent should read `state.md` first, then the end of `log.md`, and continue from `Next action`.
+
+## Progress Checks
+
+The state file is also the progress dashboard. It records:
+
+- The whole phase plan.
+- The active phase.
+- Completed and remaining phases.
+- The latest remaining-work estimate.
+- The confidence and evidence behind that estimate.
+
+When you ask "where are we?" or "how much is left?", the agent should answer from `.run-to-completion/state.md` before continuing.
 
 ## Development
 

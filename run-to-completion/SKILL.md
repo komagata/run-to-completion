@@ -25,11 +25,29 @@ Before doing substantial work:
 
 1. Restate assumptions.
 2. Define verifiable success criteria.
-3. Create or update `.run-to-completion/state.md`.
-4. Create or update `.run-to-completion/log.md`.
-5. Choose the next smallest milestone that moves directly toward the goal.
+3. Draft a phase plan that shows the expected path from start to completion.
+4. Create or update `.run-to-completion/state.md`.
+5. Create or update `.run-to-completion/log.md`.
+6. Choose the next smallest milestone that moves directly toward the goal.
 
 Use [references/state-files.md](references/state-files.md) for the required file shapes.
+
+## Progress Tracking
+
+Maintain a visible progress model throughout the task. The model must answer:
+
+- What phases make up the whole task?
+- Which phase is active now?
+- What has been completed?
+- What remains?
+- How much work is likely left?
+- What evidence supports the estimate?
+
+Use phase states: `pending`, `active`, `blocked`, `done`, or `dropped`.
+
+Update progress after every meaningful verification result and before any long pause. Keep estimates honest: use ranges and confidence labels instead of fake precision. Prefer `2-4 more iterations, medium confidence` over `73% done`.
+
+When the user asks for status, answer from `.run-to-completion/state.md` before doing more work. Include the active phase, completed phases, remaining phases, current blocker if any, and the latest remaining-work estimate.
 
 ## Execution Loop
 
@@ -39,7 +57,7 @@ Repeat until a stop condition is reached:
 2. Plan: write a short milestone plan with its verification command or evidence.
 3. Act: make the smallest useful change or perform the next research step.
 4. Verify: run focused tests, commands, checks, or source validation.
-5. Record: update `.run-to-completion/state.md` and append `.run-to-completion/log.md`.
+5. Record: update phase progress and estimates in `.run-to-completion/state.md`, then append `.run-to-completion/log.md`.
 6. Decide: continue, revise the approach, or stop with a clear reason.
 
 Prefer focused verification first. Broaden verification when the change affects shared behavior, public interfaces, or user-visible workflows.
