@@ -41,6 +41,10 @@ Assumptions:
 
 Verification status:
 
+Final response gate:
+
+Stop reason:
+
 Next action:
 
 Resume command/context:
@@ -50,6 +54,8 @@ Guidelines:
 
 - Keep `Next action` executable by a fresh agent without reading the full conversation.
 - Keep `Verification status` tied to concrete commands, tests, files, or source checks.
+- Keep `Final response gate` set to `continue`, `complete`, `blocked`, `unsafe`, `impossible`, or `paused-by-platform-limit`.
+- Keep `Stop reason` empty or `none` while `Final response gate` is `continue`. If the agent stops, write the concrete reason that made stopping valid.
 - Keep `Progress summary` short enough for a user to scan during a status check.
 - Write `Phase plan` as a checklist with phase states: `pending`, `active`, `blocked`, `done`, or `dropped`.
 - Write `Remaining estimate` as a range of iterations, hours, tasks, or unknown; include why it changed when updating it.
@@ -110,6 +116,8 @@ Current command/check:
 
 Blocker:
 
+Final response gate:
+
 Next visible update:
 ```
 
@@ -119,4 +127,5 @@ Guidelines:
 - Use plain language for humans, not only implementation notes.
 - Update `Updated` every time the file changes.
 - Set `Current command/check` before starting a long command so users can see what is happening while the agent is busy.
+- Set `Final response gate` to `continue` unless a real stop condition has been reached.
 - Use `Next visible update` to say when the dashboard is expected to change, such as `after go test ./... finishes` or `after the next benchmark run`.

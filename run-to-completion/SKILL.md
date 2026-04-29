@@ -9,6 +9,20 @@ Use this skill to pursue a well-defined goal across many iterations with minimal
 
 The agent must keep a durable state file so work can continue after context compaction, process restart, or token-limit pause. The skill cannot override model or product limits by itself; it makes continuation reliable by recording enough state for the next session to resume.
 
+## Non-Handoff Contract
+
+Do not hand the task back to the user merely because a milestone ended, a plan was written, a check failed, more work remains, or the next action is known.
+
+While the goal is incomplete and no stop condition applies, the agent must continue into the next execution-loop iteration in the same turn. Progress updates are allowed, but they are not completion reports and must not ask the user to continue the work.
+
+Before sending any final response, run this gate:
+
+1. Are all success criteria satisfied and verified?
+2. If not, is a stop condition explicitly true?
+3. If neither is true, do not send a final response. Update state files and continue with the next smallest useful action.
+
+Valid reasons to return control are only: `complete`, `blocked`, `unsafe`, `impossible`, or `paused-by-platform-limit`. A routine next step, failed test, unclear implementation detail that can be investigated, or remaining TODO is not a valid handoff reason.
+
 ## Argument-Free Invocation
 
 If the user invokes this skill without a concrete goal, ask only the missing questions needed to start:
@@ -64,7 +78,7 @@ Repeat until a stop condition is reached:
 4. Verify: run focused tests, commands, checks, or source validation.
 5. Record: update phase progress and estimates in `.run-to-completion/state.md`, refresh `.run-to-completion/progress.md`, then append `.run-to-completion/log.md`.
 6. Report: send a short progress update to the user when this completed a meaningful step, milestone, phase, or verification check.
-7. Decide: continue, revise the approach, or stop with a clear reason.
+7. Decide: if a stop condition is true, stop with a clear reason; otherwise immediately continue with the next iteration.
 
 Prefer focused verification first. Broaden verification when the change affects shared behavior, public interfaces, or user-visible workflows.
 
@@ -72,6 +86,8 @@ Prefer focused verification first. Broaden verification when the change affects 
 
 - Do not ask the user routine implementation questions; make conservative assumptions and record them.
 - Do ask or stop when continuing would be unsafe, destructive, legally risky, financially risky, or impossible without secrets/credentials the user has not provided.
+- Do not return control for routine next steps. If a next action exists and is allowed, do it.
+- Do not ask the user to run commands, inspect files, continue the plan, or decide among low-risk implementation options when the agent has the tools and context to proceed.
 - Do not invent success. If verification fails, record the failure and either fix it or choose a smaller next milestone.
 - Do not chase unrelated cleanup. Keep each iteration tied to the stated goal.
 - Do not run destructive commands unless the user explicitly allowed them or they are clearly inside a disposable sandbox.
@@ -109,3 +125,5 @@ When stopping, report:
 - Evidence: tests, commands, artifacts, links, or data that support the status.
 - Changed files or produced artifacts.
 - Remaining risks or next action, if any.
+
+Never use the completion report format for normal progress updates. A progress update must end with the next action the agent is taking, not with work for the user to do.
