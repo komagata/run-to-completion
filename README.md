@@ -29,16 +29,15 @@ run-to-completion/
     └── references/state-files.md
 ```
 
-## Install For Codex
+## Quick Install Or Update
 
-Copy or symlink the skill directory into your Codex skills directory:
+Run the same command for first install and updates:
 
 ```bash
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-ln -s "$(pwd)/run-to-completion" "${CODEX_HOME:-$HOME/.codex}/skills/run-to-completion"
+curl -fsSL https://raw.githubusercontent.com/komagata/run-to-completion/main/install.sh | bash
 ```
 
-Symlink installation is recommended because updates are just `git pull` in this repository.
+The installer clones or updates this repository under `~/.local/share/run-to-completion/repo`, then links the skill into `${CODEX_HOME:-~/.codex}/skills/run-to-completion`.
 
 Then ask Codex to use `run-to-completion` for a long-running goal.
 
@@ -49,6 +48,17 @@ Use run-to-completion. Goal: reduce the benchmark runtime below 200ms.
 Iteration loop: inspect bottleneck, implement one optimization, run benchmark, record.
 Stop if the change would alter public behavior or require production credentials.
 ```
+
+## Manual Install For Codex
+
+Copy or symlink the skill directory into your Codex skills directory:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+ln -s "$(pwd)/run-to-completion" "${CODEX_HOME:-$HOME/.codex}/skills/run-to-completion"
+```
+
+Symlink installation is recommended because updates are just `git pull` in this repository.
 
 ## Use With Claude Code
 
@@ -113,7 +123,13 @@ In the conversation, the agent should also send a short update after each meanin
 
 ## Updating The Skill
 
-If you installed by symlink from a cloned repository:
+If you used the quick install command, run it again:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/komagata/run-to-completion/main/install.sh | bash
+```
+
+If you installed manually by symlink from a cloned repository:
 
 ```bash
 cd /path/to/run-to-completion
