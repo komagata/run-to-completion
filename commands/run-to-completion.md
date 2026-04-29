@@ -4,11 +4,11 @@ argument-hint: [goal, iteration loop, stop conditions]
 allowed-tools: [Read, Glob, Grep, Bash, Write, Edit, WebFetch]
 ---
 
-# /run-to-completion
+# run-to-completion
 
 Use the bundled `run-to-completion` skill for this request.
 
-The user invoked this command with:
+The user invoked this entry point with:
 
 ```text
 $ARGUMENTS
@@ -22,4 +22,4 @@ $ARGUMENTS
 4. If `$ARGUMENTS` does not contain a concrete goal, follow the skill's argument-free invocation flow and ask only for the missing goal, iteration loop, and stop conditions.
 5. Start the run-to-completion workflow exactly as the skill describes.
 
-Do not treat this command as a one-shot answer. It is the explicit entry point for the long-running autonomous workflow.
+Do not treat this entry point as a one-shot answer. It starts the long-running autonomous workflow.

@@ -82,12 +82,12 @@ Read these files before starting:
 
 Treat the arguments as the initial goal and optional parameters. If the arguments do not contain a concrete goal, follow the skill's argument-free invocation flow and ask only for the missing goal, iteration loop, and stop conditions. Start the run-to-completion workflow exactly as the skill describes.
 EOF
-log "Installed Codex slash prompt: $prompt_file"
+log "Installed Codex custom prompt: $prompt_file"
 
 if command -v codex >/dev/null 2>&1; then
   log "Registering Codex plugin marketplace: $repo_dir"
   if ! codex plugin marketplace add "$repo_dir"; then
-    log "warning: Codex plugin registration failed. Update Codex CLI, then run this installer again to enable /run-to-completion."
+    log "warning: Codex plugin registration failed. Update Codex CLI, then run this installer again to register the plugin."
   else
     plugin_registered=1
   fi
@@ -103,7 +103,7 @@ log "  $skill_link"
 log ""
 if [ "$plugin_registered" = "1" ]; then
   log "Start it in Codex with:"
-  log "  /run-to-completion <your goal>"
+  log "  /prompts:run-to-completion <your goal>"
   log ""
   log "You can also force-load the skill with:"
   log "  /use run-to-completion"
@@ -112,7 +112,7 @@ else
   log "  /use run-to-completion"
   log ""
   log "This custom prompt should also work after starting a new Codex session:"
-  log "  /run-to-completion <your goal>"
+  log "  /prompts:run-to-completion <your goal>"
 fi
 log ""
 log "Claude Code import:"

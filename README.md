@@ -1,6 +1,6 @@
 # run-to-completion
 
-`run-to-completion` is a Codex plugin and agent skill for long-running goals. It provides a `/run-to-completion` slash command that loads the bundled skill, asks for a goal, optional iteration loop, and optional stop conditions, then keeps working until the goal is complete, unsafe, impossible, or blocked by a required user decision.
+`run-to-completion` is a Codex plugin and agent skill for long-running goals. It provides a custom prompt entry point that loads the bundled skill, asks for a goal, optional iteration loop, and optional stop conditions, then keeps working until the goal is complete, unsafe, impossible, or blocked by a required user decision.
 
 It is designed for tasks such as overnight coding work, research passes, performance improvement, flaky-test cleanup, and multi-step implementation projects.
 
@@ -39,21 +39,23 @@ Run the same command for first install and updates:
 curl -fsSL https://raw.githubusercontent.com/komagata/run-to-completion/main/install.sh | bash
 ```
 
-The installer clones or updates this repository under `~/.local/share/run-to-completion/repo`, links the skill into `${CODEX_HOME:-~/.codex}/skills/run-to-completion`, writes a `${CODEX_HOME:-~/.codex}/prompts/run-to-completion.md` slash prompt, and registers the repository as a Codex plugin marketplace when the `codex` CLI is available.
+The installer clones or updates this repository under `~/.local/share/run-to-completion/repo`, links the skill into `${CODEX_HOME:-~/.codex}/skills/run-to-completion`, writes a `${CODEX_HOME:-~/.codex}/prompts/run-to-completion.md` custom prompt, and registers the repository as a Codex plugin marketplace when the `codex` CLI is available.
 
-Then run the slash command in Codex.
+Then run the custom prompt in Codex.
 
-Start a new Codex session after installing or updating so the slash prompt is loaded.
+Start a new Codex session after installing or updating so the custom prompt is loaded.
 
 Example:
 
 ```text
-/run-to-completion Goal: reduce the benchmark runtime below 200ms.
+/prompts:run-to-completion Goal: reduce the benchmark runtime below 200ms.
 Iteration loop: inspect bottleneck, implement one optimization, run benchmark, record.
 Stop if the change would alter public behavior or require production credentials.
 ```
 
 You can also force-load the skill directly with `/use run-to-completion`, then describe the goal in a normal prompt.
+
+Note: recent Codex CLI versions expose files in `${CODEX_HOME:-~/.codex}/prompts/` under the `/prompts:` namespace. If `/run-to-completion` is not recognized, use `/prompts:run-to-completion`.
 
 ## Manual Install For Codex
 
@@ -66,13 +68,13 @@ ln -s "$(pwd)/run-to-completion" "${CODEX_HOME:-$HOME/.codex}/skills/run-to-comp
 
 Symlink installation is recommended because updates are just `git pull` in this repository.
 
-To enable the slash command manually, register this repository as a Codex plugin marketplace:
+To register the plugin manually, add this repository as a Codex plugin marketplace:
 
 ```bash
 codex plugin marketplace add /path/to/run-to-completion
 ```
 
-For exact `/run-to-completion` support, also create a Codex prompt:
+For custom prompt support, also create a Codex prompt:
 
 ````bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/prompts"
@@ -92,7 +94,7 @@ EOF
 After registering the plugin, use:
 
 ```text
-/run-to-completion Goal: ...
+/prompts:run-to-completion Goal: ...
 ```
 
 ## Use With Claude Code
@@ -109,7 +111,7 @@ Then start Claude Code in the target project and ask it to use `run-to-completio
 
 ## Argument-Free Use
 
-If invoked without a goal, the slash command loads the skill and asks:
+If invoked without a goal, the custom prompt loads the skill and asks:
 
 1. What is the goal?
 2. What iteration loop should I repeat?
