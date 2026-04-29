@@ -39,9 +39,11 @@ Run the same command for first install and updates:
 curl -fsSL https://raw.githubusercontent.com/komagata/run-to-completion/main/install.sh | bash
 ```
 
-The installer clones or updates this repository under `~/.local/share/run-to-completion/repo`, links the skill into `${CODEX_HOME:-~/.codex}/skills/run-to-completion`, and registers the repository as a Codex plugin marketplace when the `codex` CLI is available.
+The installer clones or updates this repository under `~/.local/share/run-to-completion/repo`, links the skill into `${CODEX_HOME:-~/.codex}/skills/run-to-completion`, writes a `${CODEX_HOME:-~/.codex}/prompts/run-to-completion.md` slash prompt, and registers the repository as a Codex plugin marketplace when the `codex` CLI is available.
 
 Then run the slash command in Codex.
+
+Start a new Codex session after installing or updating so the slash prompt is loaded.
 
 Example:
 
@@ -69,6 +71,23 @@ To enable the slash command manually, register this repository as a Codex plugin
 ```bash
 codex plugin marketplace add /path/to/run-to-completion
 ```
+
+For exact `/run-to-completion` support, also create a Codex prompt:
+
+````bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/prompts"
+cat > "${CODEX_HOME:-$HOME/.codex}/prompts/run-to-completion.md" <<'EOF'
+Use the run-to-completion skill for this request.
+
+Arguments:
+
+```text
+$ARGUMENTS
+```
+
+Read run-to-completion/SKILL.md and run-to-completion/references/state-files.md, then start the workflow described by the skill.
+EOF
+````
 
 After registering the plugin, use:
 

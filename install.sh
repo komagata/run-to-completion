@@ -6,8 +6,10 @@ install_root="${RUN_TO_COMPLETION_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/run
 repo_dir="$install_root/repo"
 codex_home="${CODEX_HOME:-$HOME/.codex}"
 skills_dir="$codex_home/skills"
+prompts_dir="$codex_home/prompts"
 skill_link="$skills_dir/run-to-completion"
 skill_source="$repo_dir/run-to-completion"
+prompt_file="$prompts_dir/run-to-completion.md"
 plugin_registered=0
 
 log() {
@@ -35,7 +37,7 @@ backup_existing() {
 
 need git
 
-mkdir -p "$install_root" "$skills_dir"
+mkdir -p "$install_root" "$skills_dir" "$prompts_dir"
 
 if [ -d "$repo_dir/.git" ]; then
   log "Updating repository: $repo_dir"
@@ -64,6 +66,24 @@ else
   log "Symlink failed; copied Codex skill to: $skill_link"
 fi
 
+cat >"$prompt_file" <<EOF
+Use the run-to-completion skill for this request.
+
+Arguments:
+
+\`\`\`text
+\$ARGUMENTS
+\`\`\`
+
+Read these files before starting:
+
+- $skill_source/SKILL.md
+- $skill_source/references/state-files.md
+
+Treat the arguments as the initial goal and optional parameters. If the arguments do not contain a concrete goal, follow the skill's argument-free invocation flow and ask only for the missing goal, iteration loop, and stop conditions. Start the run-to-completion workflow exactly as the skill describes.
+EOF
+log "Installed Codex slash prompt: $prompt_file"
+
 if command -v codex >/dev/null 2>&1; then
   log "Registering Codex plugin marketplace: $repo_dir"
   if ! codex plugin marketplace add "$repo_dir"; then
@@ -91,7 +111,7 @@ else
   log "Start it in Codex by force-loading the skill:"
   log "  /use run-to-completion"
   log ""
-  log "After plugin registration succeeds, this slash command will also work:"
+  log "This custom prompt should also work after starting a new Codex session:"
   log "  /run-to-completion <your goal>"
 fi
 log ""
