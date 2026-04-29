@@ -41,6 +41,8 @@ The installer clones or updates this repository under `~/.local/share/run-to-com
 
 Then ask Codex to use `run-to-completion` for a long-running goal.
 
+`run-to-completion` is a skill, not a slash command. Do not type `/run-to-completion`; Codex will report it as an unrecognized command. Use a normal prompt instead.
+
 Example:
 
 ```text
@@ -59,6 +61,8 @@ ln -s "$(pwd)/run-to-completion" "${CODEX_HOME:-$HOME/.codex}/skills/run-to-comp
 ```
 
 Symlink installation is recommended because updates are just `git pull` in this repository.
+
+After installing manually, use a normal prompt such as `Use run-to-completion. Goal: ...`; this skill is not started with `/run-to-completion`.
 
 ## Use With Claude Code
 
