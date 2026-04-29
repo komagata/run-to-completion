@@ -10,6 +10,7 @@ It is designed for tasks such as overnight coding work, research passes, perform
 - Defines success criteria before substantial work starts.
 - Maintains a visible phase plan with active phase, completed work, remaining work, and estimate confidence.
 - Repeats an `inspect -> act -> verify -> record` loop by default.
+- Emits short progress updates when meaningful steps, milestones, phases, or verification checks complete.
 - Records durable progress in `.run-to-completion/state.md`, `.run-to-completion/progress.md`, and `.run-to-completion/log.md`.
 - Gives the next agent enough context to resume after context compaction, token limits, or a restarted session.
 - Stops on safety, cost, destructive-action, or impossibility boundaries.
@@ -107,6 +108,8 @@ The dashboard records:
 - The current command or check, when a long command is running.
 
 When you ask "where are we?" or "how much is left?", the agent should answer from `.run-to-completion/state.md` before continuing. When you cannot ask because the agent is busy, inspect `.run-to-completion/progress.md` directly.
+
+In the conversation, the agent should also send a short update after each meaningful step or verification result. These updates should say what changed, where the task is now, and what comes next.
 
 ## Updating The Skill
 

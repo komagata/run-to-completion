@@ -52,6 +52,8 @@ When the user asks for status, answer from `.run-to-completion/state.md` before 
 
 Also maintain `.run-to-completion/progress.md` as a human-facing dashboard. It must be readable without the conversation and short enough to watch in another terminal or editor. Update it whenever `state.md` changes, before starting long-running commands, after long-running commands finish, and before any pause.
 
+Emit a concise progress update to the user whenever a step, milestone, phase, or verification check completes. Keep it to 1-3 sentences and include: current phase, what just changed, remaining estimate if it changed, and the next step. Do not wait for the user to ask. Avoid noisy updates for tiny internal actions; group them around meaningful boundaries.
+
 ## Execution Loop
 
 Repeat until a stop condition is reached:
@@ -61,7 +63,8 @@ Repeat until a stop condition is reached:
 3. Act: make the smallest useful change or perform the next research step.
 4. Verify: run focused tests, commands, checks, or source validation.
 5. Record: update phase progress and estimates in `.run-to-completion/state.md`, refresh `.run-to-completion/progress.md`, then append `.run-to-completion/log.md`.
-6. Decide: continue, revise the approach, or stop with a clear reason.
+6. Report: send a short progress update to the user when this completed a meaningful step, milestone, phase, or verification check.
+7. Decide: continue, revise the approach, or stop with a clear reason.
 
 Prefer focused verification first. Broaden verification when the change affects shared behavior, public interfaces, or user-visible workflows.
 
