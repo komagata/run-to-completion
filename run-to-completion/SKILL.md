@@ -27,8 +27,9 @@ Before doing substantial work:
 2. Define verifiable success criteria.
 3. Draft a phase plan that shows the expected path from start to completion.
 4. Create or update `.run-to-completion/state.md`.
-5. Create or update `.run-to-completion/log.md`.
-6. Choose the next smallest milestone that moves directly toward the goal.
+5. Create or update `.run-to-completion/progress.md`.
+6. Create or update `.run-to-completion/log.md`.
+7. Choose the next smallest milestone that moves directly toward the goal.
 
 Use [references/state-files.md](references/state-files.md) for the required file shapes.
 
@@ -49,6 +50,8 @@ Update progress after every meaningful verification result and before any long p
 
 When the user asks for status, answer from `.run-to-completion/state.md` before doing more work. Include the active phase, completed phases, remaining phases, current blocker if any, and the latest remaining-work estimate.
 
+Also maintain `.run-to-completion/progress.md` as a human-facing dashboard. It must be readable without the conversation and short enough to watch in another terminal or editor. Update it whenever `state.md` changes, before starting long-running commands, after long-running commands finish, and before any pause.
+
 ## Execution Loop
 
 Repeat until a stop condition is reached:
@@ -57,7 +60,7 @@ Repeat until a stop condition is reached:
 2. Plan: write a short milestone plan with its verification command or evidence.
 3. Act: make the smallest useful change or perform the next research step.
 4. Verify: run focused tests, commands, checks, or source validation.
-5. Record: update phase progress and estimates in `.run-to-completion/state.md`, then append `.run-to-completion/log.md`.
+5. Record: update phase progress and estimates in `.run-to-completion/state.md`, refresh `.run-to-completion/progress.md`, then append `.run-to-completion/log.md`.
 6. Decide: continue, revise the approach, or stop with a clear reason.
 
 Prefer focused verification first. Broaden verification when the change affects shared behavior, public interfaces, or user-visible workflows.
@@ -77,8 +80,9 @@ When context, token, or time limits are approaching:
 1. Stop starting new work.
 2. Finish or revert only the current incomplete local edit if needed to leave files coherent.
 3. Update `.run-to-completion/state.md` with the exact next action.
-4. Append the latest verification status to `.run-to-completion/log.md`.
-5. End with a short resume instruction.
+4. Refresh `.run-to-completion/progress.md`.
+5. Append the latest verification status to `.run-to-completion/log.md`.
+6. End with a short resume instruction.
 
 On resume, read `.run-to-completion/state.md` first, then the end of `.run-to-completion/log.md`, then continue from `Next action`.
 

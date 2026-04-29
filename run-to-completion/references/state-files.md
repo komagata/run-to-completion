@@ -1,6 +1,6 @@
 # State Files
 
-Keep state concise and factual. These files are the handoff mechanism for long-running work, context compaction, and restart recovery.
+Keep state concise and factual. These files are the handoff mechanism for long-running work, context compaction, restart recovery, and user-visible progress.
 
 ## `.run-to-completion/state.md`
 
@@ -78,3 +78,45 @@ Guidelines:
 - Record estimate changes and the evidence behind them.
 - Record why the loop changed direction.
 - Do not store secrets, credentials, private tokens, or unnecessary sensitive data.
+
+## `.run-to-completion/progress.md`
+
+This is the human-facing dashboard. Keep it short and overwrite it with the latest status:
+
+```markdown
+# Run To Completion Progress
+
+Status: running | blocked | paused | complete | unsafe | impossible
+Updated: 2026-04-29 12:00 JST
+
+Goal:
+
+Now:
+
+Overall progress:
+- [done] ...
+- [active] ...
+- [pending] ...
+
+Completed:
+
+Remaining:
+
+Estimate:
+
+Confidence:
+
+Current command/check:
+
+Blocker:
+
+Next visible update:
+```
+
+Guidelines:
+
+- Keep it under about 80 lines.
+- Use plain language for humans, not only implementation notes.
+- Update `Updated` every time the file changes.
+- Set `Current command/check` before starting a long command so users can see what is happening while the agent is busy.
+- Use `Next visible update` to say when the dashboard is expected to change, such as `after go test ./... finishes` or `after the next benchmark run`.

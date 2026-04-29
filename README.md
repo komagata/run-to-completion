@@ -10,7 +10,7 @@ It is designed for tasks such as overnight coding work, research passes, perform
 - Defines success criteria before substantial work starts.
 - Maintains a visible phase plan with active phase, completed work, remaining work, and estimate confidence.
 - Repeats an `inspect -> act -> verify -> record` loop by default.
-- Records durable progress in `.run-to-completion/state.md` and `.run-to-completion/log.md`.
+- Records durable progress in `.run-to-completion/state.md`, `.run-to-completion/progress.md`, and `.run-to-completion/log.md`.
 - Gives the next agent enough context to resume after context compaction, token limits, or a restarted session.
 - Stops on safety, cost, destructive-action, or impossibility boundaries.
 
@@ -36,6 +36,8 @@ Copy or symlink the skill directory into your Codex skills directory:
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
 ln -s "$(pwd)/run-to-completion" "${CODEX_HOME:-$HOME/.codex}/skills/run-to-completion"
 ```
+
+Symlink installation is recommended because updates are just `git pull` in this repository.
 
 Then ask Codex to use `run-to-completion` for a long-running goal.
 
@@ -81,22 +83,50 @@ During work, the agent creates files in the target project:
 
 ```text
 .run-to-completion/state.md
+.run-to-completion/progress.md
 .run-to-completion/log.md
 ```
 
 On resume, the next agent should read `state.md` first, then the end of `log.md`, and continue from `Next action`.
 
-## Progress Checks
+## Live Progress
 
-The state file is also the progress dashboard. It records:
+The agent writes `.run-to-completion/progress.md` as a short dashboard that can be watched while the agent is busy. Open it in an editor, or run:
+
+```bash
+watch -n 5 'sed -n "1,120p" .run-to-completion/progress.md'
+```
+
+The dashboard records:
 
 - The whole phase plan.
 - The active phase.
 - Completed and remaining phases.
 - The latest remaining-work estimate.
 - The confidence and evidence behind that estimate.
+- The current command or check, when a long command is running.
 
-When you ask "where are we?" or "how much is left?", the agent should answer from `.run-to-completion/state.md` before continuing.
+When you ask "where are we?" or "how much is left?", the agent should answer from `.run-to-completion/state.md` before continuing. When you cannot ask because the agent is busy, inspect `.run-to-completion/progress.md` directly.
+
+## Updating The Skill
+
+If you installed by symlink from a cloned repository:
+
+```bash
+cd /path/to/run-to-completion
+git pull
+```
+
+If you copied the directory instead of symlinking it, pull the repository and copy the skill directory again:
+
+```bash
+cd /path/to/run-to-completion
+git pull
+rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/run-to-completion"
+cp -R run-to-completion "${CODEX_HOME:-$HOME/.codex}/skills/run-to-completion"
+```
+
+For Claude Code, update the repository copy referenced by your `CLAUDE.md` import. If you copied the instructions into another `CLAUDE.md`, copy the new contents again.
 
 ## Development
 
