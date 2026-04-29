@@ -6,10 +6,9 @@ install_root="${RUN_TO_COMPLETION_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/run
 repo_dir="$install_root/repo"
 codex_home="${CODEX_HOME:-$HOME/.codex}"
 skills_dir="$codex_home/skills"
-prompts_dir="$codex_home/prompts"
 skill_link="$skills_dir/run-to-completion"
 skill_source="$repo_dir/run-to-completion"
-prompt_file="$prompts_dir/run-to-completion.md"
+legacy_prompt_file="$codex_home/prompts/run-to-completion.md"
 plugin_registered=0
 
 log() {
@@ -37,7 +36,7 @@ backup_existing() {
 
 need git
 
-mkdir -p "$install_root" "$skills_dir" "$prompts_dir"
+mkdir -p "$install_root" "$skills_dir"
 
 if [ -d "$repo_dir/.git" ]; then
   log "Updating repository: $repo_dir"
@@ -66,23 +65,10 @@ else
   log "Symlink failed; copied Codex skill to: $skill_link"
 fi
 
-cat >"$prompt_file" <<EOF
-Use the run-to-completion skill for this request.
-
-Arguments:
-
-\`\`\`text
-\$ARGUMENTS
-\`\`\`
-
-Read these files before starting:
-
-- $skill_source/SKILL.md
-- $skill_source/references/state-files.md
-
-Treat the arguments as the initial goal and optional parameters. If the arguments do not contain a concrete goal, follow the skill's argument-free invocation flow and ask only for the missing goal, iteration loop, and stop conditions. Start the run-to-completion workflow exactly as the skill describes.
-EOF
-log "Installed Codex custom prompt: $prompt_file"
+if [ -f "$legacy_prompt_file" ]; then
+  rm "$legacy_prompt_file"
+  log "Removed legacy Codex prompt: $legacy_prompt_file"
+fi
 
 if command -v codex >/dev/null 2>&1; then
   log "Registering Codex plugin marketplace: $repo_dir"
@@ -103,17 +89,13 @@ log "  $skill_link"
 log ""
 if [ "$plugin_registered" = "1" ]; then
   log "Start it in Codex with:"
-  log "  /prompts:run-to-completion <your goal>"
-  log ""
-  log "You can also force-load the skill with:"
-  log "  /use run-to-completion"
+  log "  @run-to-completion <your goal>"
 else
-  log "Start it in Codex by force-loading the skill:"
-  log "  /use run-to-completion"
-  log ""
-  log "This custom prompt should also work after starting a new Codex session:"
-  log "  /prompts:run-to-completion <your goal>"
+  log "Start it in Codex by asking for the skill by name:"
+  log "  Use the run-to-completion skill to <your goal>"
 fi
+log ""
+log "Note: Codex CLI v0.125.0 does not expose this skill as /run-to-completion, /prompts:run-to-completion, or /use."
 log ""
 log "Claude Code import:"
 log "  @$skill_source/CLAUDE.md"
