@@ -1,180 +1,138 @@
 # run-to-completion
 
-`run-to-completion` is a Codex plugin and agent skill for long-running goals. It loads a bundled skill that asks for a goal, optional iteration loop, and optional stop conditions, then keeps working until the goal is complete, unsafe, impossible, or blocked by a required user decision.
+`run-to-completion` is a CLI runner for long-running Claude Code work.
 
-It is designed for tasks such as overnight coding work, research passes, performance improvement, flaky-test cleanup, and multi-step implementation projects.
+Instead of relying on a skill or slash command to keep one agent session alive, it runs `claude -p` as a repeatable one-shot command. After every invocation, Claude writes `.run-to-completion/status.json`. The runner reads that file and starts another invocation while the status is `continue`.
 
-## What It Does
-
-- Elicits missing inputs when invoked without arguments.
-- Defines success criteria before substantial work starts.
-- Maintains a visible phase plan with active phase, completed work, remaining work, and estimate confidence.
-- Repeats an `inspect -> act -> verify -> record` loop by default.
-- Emits short progress updates when meaningful steps, milestones, phases, or verification checks complete.
-- Records durable progress in `.run-to-completion/state.md`, `.run-to-completion/progress.md`, and `.run-to-completion/log.md`.
-- Gives the next agent enough context to resume after context compaction, token limits, or a restarted session.
-- Stops on safety, cost, destructive-action, or impossibility boundaries.
-
-The skill does not bypass provider context limits or quota limits. It makes long work resumable by keeping concise state files.
-
-## Repository Layout
+This makes the outer loop deterministic:
 
 ```text
-run-to-completion/
-├── .codex-plugin/plugin.json
-├── commands/run-to-completion.md
-├── PLAN.md
-└── run-to-completion/
-    ├── CLAUDE.md
-    ├── SKILL.md
-    ├── agents/openai.yaml
-    └── references/state-files.md
+run-to-completion
+  -> claude -p
+  -> read .run-to-completion/status.json
+  -> continue | complete | blocked | unsafe | impossible
 ```
 
-## Quick Install Or Update
+## Why This Exists
 
-Run the same command for first install and updates:
+Interactive agents can stop before the goal is done because the model thinks a milestone is a natural handoff, the session ends, or context pressure changes behavior. This runner moves continuation control outside the model.
+
+The model still decides what work to do next, but the runner decides whether another Claude invocation should happen.
+
+## Install Or Update
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/komagata/run-to-completion/main/install.sh | bash
 ```
 
-The installer clones or updates this repository under `~/.local/share/run-to-completion/repo`, links the skill into `${CODEX_HOME:-~/.codex}/skills/run-to-completion`, and registers the repository as a Codex plugin marketplace when the `codex` CLI is available.
-
-Then start a new Codex session and invoke the skill by name.
-
-Codex CLI v0.125.0 does not expose installed skills as `/run-to-completion`, `/prompts:run-to-completion`, or `/use`. Use an `@` mention or ask for the skill by name.
-
-Example:
+The installer clones or updates this repository under `~/.local/share/run-to-completion/repo` and symlinks:
 
 ```text
-@run-to-completion Goal: reduce the benchmark runtime below 200ms.
-Iteration loop: inspect bottleneck, implement one optimization, run benchmark, record.
-Stop if the change would alter public behavior or require production credentials.
+~/.local/bin/run-to-completion -> ~/.local/share/run-to-completion/repo/bin/run-to-completion
 ```
 
-If `@run-to-completion` is not available in your client, use a normal prompt:
-
-```text
-Use the run-to-completion skill to reduce the benchmark runtime below 200ms.
-```
-
-## Manual Install For Codex
-
-Copy or symlink the skill directory into your Codex skills directory:
+If `run-to-completion` is not found after install, add `~/.local/bin` to your `PATH`.
 
 ```bash
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-ln -s "$(pwd)/run-to-completion" "${CODEX_HOME:-$HOME/.codex}/skills/run-to-completion"
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Symlink installation is recommended because updates are just `git pull` in this repository.
+## Usage
 
-To register the plugin manually, add this repository as a Codex plugin marketplace:
+Run it from the target repository:
 
 ```bash
-codex plugin marketplace add /path/to/run-to-completion
+run-to-completion "Fix flaky tests and verify the full test suite passes"
 ```
 
-After registering the plugin, use:
+Useful options:
+
+```bash
+run-to-completion --max-iterations 20 "Improve benchmark runtime below 200ms"
+run-to-completion --model opus "Implement the parser described in SPEC.md"
+run-to-completion --permission-mode acceptEdits "Refactor the CLI and update tests"
+run-to-completion --workdir /path/to/project "Ship the requested feature"
+```
+
+Defaults:
+
+- `--max-iterations 100`
+- `--claude-bin claude`
+- `--permission-mode auto`
+- `--workdir .`
+
+Environment overrides:
+
+- `RUN_TO_COMPLETION_MAX_ITERATIONS`
+- `RUN_TO_COMPLETION_CLAUDE_BIN`
+- `RUN_TO_COMPLETION_MODEL`
+- `RUN_TO_COMPLETION_PERMISSION_MODE`
+- `RUN_TO_COMPLETION_BIN_DIR`
+- `RUN_TO_COMPLETION_HOME`
+
+## Status Contract
+
+Claude must write valid JSON to:
 
 ```text
-@run-to-completion Goal: ...
+.run-to-completion/status.json
 ```
 
-## Use With Claude Code
+Shape:
 
-Claude Code can read the same instructions from `run-to-completion/CLAUDE.md`, which imports `SKILL.md`.
-
-One simple approach is to copy or import the skill instructions into a project or user `CLAUDE.md`:
-
-```markdown
-@/absolute/path/to/run-to-completion/run-to-completion/CLAUDE.md
+```json
+{
+  "status": "continue",
+  "summary": "Short factual summary.",
+  "next_action": "Next action if status is continue.",
+  "evidence": ["commands, files, tests, or facts supporting the status"],
+  "updated_at": "2026-04-30T00:00:00Z"
+}
 ```
 
-Then start Claude Code in the target project and ask it to use `run-to-completion` with a goal.
+Allowed statuses:
 
-## Argument-Free Use
+- `continue`: more allowed work remains; the runner starts Claude again.
+- `complete`: success criteria are satisfied and verified.
+- `blocked`: progress requires a user decision, secret, paid service, production access, or destructive action not already authorized.
+- `unsafe`: continuing would create security, privacy, legal, financial, or operational risk.
+- `impossible`: evidence shows the goal cannot be achieved with available tools/data.
 
-If invoked without a goal, the skill asks:
+A failed test, known TODO, or known next action is not `blocked`. Claude should fix it or set `continue`.
 
-1. What is the goal?
-2. What iteration loop should I repeat?
-3. What stop conditions should I obey?
+## Progress Files
 
-If the user omits optional answers, the default loop is:
+The runner and Claude use:
 
 ```text
-inspect -> act -> verify -> record
-```
-
-Default stop conditions are completion, impossibility, safety risk, or significant cost/damage risk.
-
-## Resume Files
-
-During work, the agent creates files in the target project:
-
-```text
-.run-to-completion/state.md
+.run-to-completion/status.json
 .run-to-completion/progress.md
 .run-to-completion/log.md
+.run-to-completion/iteration-N.out
+.run-to-completion/session-id
 ```
 
-On resume, the next agent should read `state.md` first, then the end of `log.md`, and continue from `Next action`.
-
-## Live Progress
-
-The agent writes `.run-to-completion/progress.md` as a short dashboard that can be watched while the agent is busy. Open it in an editor, or run:
+`progress.md` is the human-facing dashboard. You can watch it from another terminal:
 
 ```bash
 watch -n 5 'sed -n "1,120p" .run-to-completion/progress.md'
 ```
 
-The dashboard records:
+`iteration-N.out` stores each Claude invocation output.
 
-- The whole phase plan.
-- The active phase.
-- Completed and remaining phases.
-- The latest remaining-work estimate.
-- The confidence and evidence behind that estimate.
-- The current command or check, when a long command is running.
+## Update
 
-When you ask "where are we?" or "how much is left?", the agent should answer from `.run-to-completion/state.md` before continuing. When you cannot ask because the agent is busy, inspect `.run-to-completion/progress.md` directly.
-
-In the conversation, the agent should also send a short update after each meaningful step or verification result. These updates should say what changed, where the task is now, and what comes next.
-
-## Updating The Skill
-
-If you used the quick install command, run it again:
+Run the installer again:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/komagata/run-to-completion/main/install.sh | bash
 ```
 
-If you installed manually by symlink from a cloned repository:
-
-```bash
-cd /path/to/run-to-completion
-git pull
-```
-
-If you copied the directory instead of symlinking it, pull the repository and copy the skill directory again:
-
-```bash
-cd /path/to/run-to-completion
-git pull
-rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/run-to-completion"
-cp -R run-to-completion "${CODEX_HOME:-$HOME/.codex}/skills/run-to-completion"
-```
-
-For Claude Code, update the repository copy referenced by your `CLAUDE.md` import. If you copied the instructions into another `CLAUDE.md`, copy the new contents again.
-
 ## Development
 
-Validate the skill format with:
+Static checks:
 
 ```bash
-python3 /home/komagata/.codex/skills/.system/skill-creator/scripts/quick_validate.py run-to-completion
+bash -n install.sh
+bash -n bin/run-to-completion
 ```
-
-The validation script checks the required skill metadata and naming rules.

@@ -1,45 +1,38 @@
 # run-to-completion
 
-ゴールを与えたらそれが完了するまで人間に問い合わせず、重大な安全性の問題が起こるか、ゴール到達不可能になるまでAIがずっと作業するskillを作りたい。
+Goal: provide a CLI runner that keeps invoking Claude Code until a long-running goal reaches a terminal state.
 
-名前案: run-to-completion
+## Design
 
-ユースケースとしては、ユーザーが寝る時に実行して、朝起きって確認する。ゴールが明確だが難しいタスクをたのむなど。
+`run-to-completion` is no longer a Codex/Claude skill. It is an outer control loop.
 
-## skillに与えるべき情報
+1. User runs `run-to-completion "<goal>"`.
+2. Runner invokes `claude -p` once with the goal and current state.
+3. Claude works inside the target repository.
+4. Claude writes `.run-to-completion/status.json`.
+5. Runner reads `status.json`.
+6. Runner stops on `complete`, `blocked`, `unsafe`, or `impossible`.
+7. Runner invokes Claude again on `continue`.
 
-- ゴール
-- イテレーションの内容(オプション)
-- 中止条件(オプション)
+## State Files
 
-### ゴールの例
+- `.run-to-completion/status.json`: machine-readable runner status.
+- `.run-to-completion/progress.md`: human-readable progress dashboard.
+- `.run-to-completion/log.md`: concise work log maintained by Claude.
+- `.run-to-completion/iteration-N.out`: stdout from each Claude invocation.
+- `.run-to-completion/session-id`: Claude session UUID reused across iterations.
 
-- 指定したスペックのプログラミング言語を実装する
-- 今まで発売された全てのビデオゲームのタイトルのリストを調査して作る
-- 対象のプログラムの実行速度が200msになるまで高速化する
-- 対象のテストスイートのFlakyなテストをなくす
+## Status Values
 
-### イテレーションの内容の例
+- `continue`: more allowed work remains.
+- `complete`: success criteria are satisfied and verified.
+- `blocked`: progress requires a user decision, secret, paid service, production access, or destructive action not already authorized.
+- `unsafe`: continuing would create unacceptable risk.
+- `impossible`: evidence shows the goal cannot be achieved with available tools/data.
 
-1. 仕様調査
-2. 実装
-3. テスト
-4. 記録
+## Success Criteria
 
-### 中止条件の例
-
-- ゴールに向かう道筋が見つからない
-- このまま続けると安全上の問題が発生する
-- 大きな金銭的損害が発生する
-
-## つくってほしいこと
-
-skillを引数なしで実行したらこれらの情報を入力するように促して、逆質問してほしい。
-
-claude code, codexどちらでも使えるskillとして作って欲しい
-
-数十時間連続で作業可能なぐらいで作って欲しい。
-
-tokenのlimitが来たら一時停止し、limitが解除されたら自動で続きを進めるようにしてほしい。（これはマスト機能）
-
-skillとしてもっといいかたち・いい作りがあったら提案してほしい
+- Installer creates a `run-to-completion` command.
+- Runner can loop over `claude -p`.
+- Runner stops only on terminal statuses or max iterations.
+- Progress remains inspectable while the runner is active.

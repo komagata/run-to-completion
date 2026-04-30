@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  run-to-completion [options] <goal>
+
+Options:
+  --max-iterations N       Maximum Claude invocations. Default: 100
+  --claude-bin PATH        Claude command. Default: claude
+  --model MODEL            Pass --model to claude
+  --permission-mode MODE   Pass --permission-mode to claude. Default: auto
+  --workdir DIR            Directory to run in. Default: current directory
+  --help                   Show this help
+
+The runner repeatedly invokes `claude -p` until `.run-to-completion/status.json`
+contains status complete, blocked, unsafe, or impossible.
+EOF
+}
+
+die() {
+  printf 'run-to-completion: %s\n' "$*" >&2
+  exit 1
+}
+
+claude_bin="${RUN_TO_COMPLETION_CLAUDE_BIN:-claude}"
+max_iterations="${RUN_TO_COMPLETION_MAX_ITERATIONS:-100}"
+permission_mode="${RUN_TO_COMPLETION_PERMISSION_MODE:-auto}"
+model="${RUN_TO_COMPLETION_MODEL:-}"
+workdir="$PWD"
+goal_parts=()
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --max-iterations)
+      [ "$#" -ge 2 ] || die "--max-iterations requires a value"
+      max_iterations="$2"
+      shift 2
+      ;;
+    --claude-bin)
+      [ "$#" -ge 2 ] || die "--claude-bin requires a value"
+      claude_bin="$2"
+      shift 2
+      ;;
+    --model)
+      [ "$#" -ge 2 ] || die "--model requires a value"
+      model="$2"
+      shift 2
+      ;;
+    --permission-mode)
+      [ "$#" -ge 2 ] || die "--permission-mode requires a value"
+      permission_mode="$2"
+      shift 2
+      ;;
+    --workdir)
+      [ "$#" -ge 2 ] || die "--workdir requires a value"
+      workdir="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      while [ "$#" -gt 0 ]; do
+        goal_parts+=("$1")
+        shift
+      done
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      goal_parts+=("$1")
+      shift
+      ;;
+  esac
+done
+
+[ "${#goal_parts[@]}" -gt 0 ] || { usage >&2; exit 2; }
+command -v "$claude_bin" >/dev/null 2>&1 || die "claude command not found: $claude_bin"
+command -v python3 >/dev/null 2>&1 || die "python3 is required"
+[[ "$max_iterations" =~ ^[0-9]+$ ]] || die "--max-iterations must be an integer"
+[ "$max_iterations" -gt 0 ] || die "--max-iterations must be greater than zero"
+[ -d "$workdir" ] || die "workdir does not exist: $workdir"
+workdir="$(cd "$workdir" && pwd)"
+
+goal="${goal_parts[*]}"
+state_dir="$workdir/.run-to-completion"
+status_file="$state_dir/status.json"
+progress_file="$state_dir/progress.md"
+log_file="$state_dir/log.md"
+session_file="$state_dir/session-id"
+mkdir -p "$state_dir"
+
+if [ -f "$session_file" ]; then
+  session_id="$(cat "$session_file")"
+else
+  session_id="$(python3 - <<'PY'
+import uuid
+print(uuid.uuid4())
+PY
+)"
+  printf '%s\n' "$session_id" >"$session_file"
+fi
+
+if [ ! -f "$status_file" ]; then
+  cat >"$status_file" <<EOF
+{
+  "status": "continue",
+  "summary": "Not started.",
+  "next_action": "Start the first iteration.",
+  "evidence": [],
+  "updated_at": null
+}
+EOF
+fi
+
+status_of() {
+  python3 - "$status_file" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        data = json.load(f)
+    print(data.get("status", "continue"))
+except Exception:
+    print("continue")
+PY
+}
+
+summary_of() {
+  python3 - "$status_file" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        data = json.load(f)
+    print(data.get("summary", ""))
+except Exception as e:
+    print(f"status read failed: {e}")
+PY
+}
+
+make_prompt() {
+  local iteration="$1"
+  cat <<EOF
+You are being run by the run-to-completion CLI runner.
+
+Goal:
+$goal
+
+Runner contract:
+- Work autonomously toward the goal in this repository.
+- Do not ask the user to do routine next steps.
+- If the goal is not complete and no stop condition applies, do the next useful action now.
+- Keep work scoped to the goal.
+- Maintain these files:
+  - .run-to-completion/progress.md: short human-readable dashboard
+  - .run-to-completion/log.md: append-only concise iteration log
+  - .run-to-completion/status.json: machine-readable status for the runner
+
+At the end of this invocation, always write valid JSON to .run-to-completion/status.json with this schema:
+{
+  "status": "continue | complete | blocked | unsafe | impossible",
+  "summary": "short factual summary",
+  "next_action": "next action if status is continue, or empty string otherwise",
+  "evidence": ["commands, files, tests, or facts supporting the status"],
+  "updated_at": "ISO-8601 timestamp"
+}
+
+Status rules:
+- Use "continue" whenever more allowed work remains.
+- Use "complete" only when the goal's success criteria are satisfied and verified.
+- Use "blocked" only when progress requires a user decision, unavailable secret, paid service, production access, or destructive action not already authorized.
+- Use "unsafe" only for security, privacy, legal, financial, or operational risk.
+- Use "impossible" only when evidence shows the goal cannot be achieved with the available tools/data.
+- A failed test, known TODO, or known next action is not blocked. Fix it or continue.
+
+This is runner iteration $iteration of $max_iterations.
+Read existing .run-to-completion/status.json, progress.md, and log.md if present, then continue from the recorded next action.
+EOF
+}
+
+printf 'run-to-completion: goal: %s\n' "$goal"
+printf 'run-to-completion: workdir: %s\n' "$workdir"
+printf 'run-to-completion: session: %s\n' "$session_id"
+
+for ((iteration = 1; iteration <= max_iterations; iteration++)); do
+  status="$(status_of)"
+  case "$status" in
+    complete|blocked|unsafe|impossible)
+      printf 'run-to-completion: stopping before iteration %d: %s\n' "$iteration" "$status"
+      printf 'run-to-completion: %s\n' "$(summary_of)"
+      exit 0
+      ;;
+    continue)
+      ;;
+    *)
+      printf 'run-to-completion: unknown status %s; treating as continue\n' "$status"
+      ;;
+  esac
+
+  printf '\nrun-to-completion: iteration %d/%d\n' "$iteration" "$max_iterations"
+  printf 'run-to-completion: %s\n' "$(summary_of)"
+
+  prompt="$(make_prompt "$iteration")"
+  output_file="$state_dir/iteration-$iteration.out"
+  cmd=("$claude_bin" -p --session-id "$session_id" --permission-mode "$permission_mode")
+  if [ -n "$model" ]; then
+    cmd+=(--model "$model")
+  fi
+  cmd+=("$prompt")
+
+  if ! (cd "$workdir" && "${cmd[@]}") | tee "$output_file"; then
+    cat >"$status_file" <<EOF
+{
+  "status": "blocked",
+  "summary": "Claude invocation failed during runner iteration $iteration.",
+  "next_action": "",
+  "evidence": ["See $output_file"],
+  "updated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+    die "claude invocation failed; status set to blocked"
+  fi
+
+  status="$(status_of)"
+  printf 'run-to-completion: status after iteration %d: %s\n' "$iteration" "$status"
+  printf 'run-to-completion: %s\n' "$(summary_of)"
+
+  if [ -f "$progress_file" ]; then
+    printf '\nrun-to-completion: progress dashboard\n'
+    sed -n '1,80p' "$progress_file"
+  fi
+
+  case "$status" in
+    complete|blocked|unsafe|impossible)
+      exit 0
+      ;;
+    continue)
+      ;;
+    *)
+      printf 'run-to-completion: invalid status %s; continuing\n' "$status"
+      ;;
+  esac
+done
+
+cat >"$status_file" <<EOF
+{
+  "status": "blocked",
+  "summary": "Runner reached max iterations ($max_iterations) before completion.",
+  "next_action": "",
+  "evidence": ["Increase --max-iterations or inspect .run-to-completion/progress.md"],
+  "updated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+
+die "max iterations reached"

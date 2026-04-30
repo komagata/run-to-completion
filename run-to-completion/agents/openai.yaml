@@ -1,4 +1,0 @@
-interface:
-  display_name: "Run To Completion"
-  short_description: "Autonomous resumable goal execution."
-  default_prompt: "Use run-to-completion to pursue this goal until it is complete, unsafe, or impossible."

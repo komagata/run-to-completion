@@ -4,12 +4,11 @@ set -euo pipefail
 repo_url="https://github.com/komagata/run-to-completion.git"
 install_root="${RUN_TO_COMPLETION_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/run-to-completion}"
 repo_dir="$install_root/repo"
-codex_home="${CODEX_HOME:-$HOME/.codex}"
-skills_dir="$codex_home/skills"
-skill_link="$skills_dir/run-to-completion"
-skill_source="$repo_dir/run-to-completion"
-legacy_prompt_file="$codex_home/prompts/run-to-completion.md"
-plugin_registered=0
+bin_dir="${RUN_TO_COMPLETION_BIN_DIR:-$HOME/.local/bin}"
+bin_link="$bin_dir/run-to-completion"
+runner_source="$repo_dir/bin/run-to-completion"
+legacy_skill_link="${CODEX_HOME:-$HOME/.codex}/skills/run-to-completion"
+legacy_prompt_file="${CODEX_HOME:-$HOME/.codex}/prompts/run-to-completion.md"
 
 log() {
   printf '%s\n' "$*"
@@ -22,21 +21,10 @@ need() {
   fi
 }
 
-backup_existing() {
-  if [ -e "$skill_link" ] || [ -L "$skill_link" ]; then
-    if [ -L "$skill_link" ]; then
-      rm "$skill_link"
-    else
-      backup="$skill_link.backup.$(date +%Y%m%d%H%M%S)"
-      mv "$skill_link" "$backup"
-      log "Backed up existing skill to $backup"
-    fi
-  fi
-}
-
 need git
+need python3
 
-mkdir -p "$install_root" "$skills_dir"
+mkdir -p "$install_root" "$bin_dir"
 
 if [ -d "$repo_dir/.git" ]; then
   log "Updating repository: $repo_dir"
@@ -51,18 +39,31 @@ else
   git clone "$repo_url" "$repo_dir"
 fi
 
-if [ ! -f "$skill_source/SKILL.md" ]; then
-  log "error: expected skill file was not found: $skill_source/SKILL.md"
+if [ ! -x "$runner_source" ]; then
+  log "error: expected runner was not found or executable: $runner_source"
   exit 1
 fi
 
-backup_existing
+if [ -e "$bin_link" ] || [ -L "$bin_link" ]; then
+  if [ -L "$bin_link" ]; then
+    rm "$bin_link"
+  else
+    backup="$bin_link.backup.$(date +%Y%m%d%H%M%S)"
+    mv "$bin_link" "$backup"
+    log "Backed up existing command to $backup"
+  fi
+fi
 
-if ln -s "$skill_source" "$skill_link" 2>/dev/null; then
-  log "Installed Codex skill symlink: $skill_link -> $skill_source"
-else
-  cp -R "$skill_source" "$skill_link"
-  log "Symlink failed; copied Codex skill to: $skill_link"
+ln -s "$runner_source" "$bin_link"
+log "Installed command: $bin_link -> $runner_source"
+
+if [ -L "$legacy_skill_link" ]; then
+  rm "$legacy_skill_link"
+  log "Removed legacy Codex skill symlink: $legacy_skill_link"
+elif [ -e "$legacy_skill_link" ]; then
+  backup="$legacy_skill_link.backup.$(date +%Y%m%d%H%M%S)"
+  mv "$legacy_skill_link" "$backup"
+  log "Backed up legacy Codex skill directory to: $backup"
 fi
 
 if [ -f "$legacy_prompt_file" ]; then
@@ -71,34 +72,22 @@ if [ -f "$legacy_prompt_file" ]; then
 fi
 
 if command -v codex >/dev/null 2>&1; then
-  log "Registering Codex plugin marketplace: $repo_dir"
-  if ! codex plugin marketplace add "$repo_dir"; then
-    log "warning: Codex plugin registration failed. Update Codex CLI, then run this installer again to register the plugin."
-  else
-    plugin_registered=1
+  if codex plugin marketplace remove run-to-completion >/dev/null 2>&1; then
+    log "Removed legacy Codex plugin marketplace: run-to-completion"
   fi
-else
-  log "Codex CLI was not found; skipped plugin marketplace registration."
 fi
 
 log ""
 log "run-to-completion is installed."
 log ""
-log "Codex skill path:"
-log "  $skill_link"
+log "Start it with:"
+log "  run-to-completion \"<your goal>\""
 log ""
-if [ "$plugin_registered" = "1" ]; then
-  log "Start it in Codex with:"
-  log "  @run-to-completion <your goal>"
-else
-  log "Start it in Codex by asking for the skill by name:"
-  log "  Use the run-to-completion skill to <your goal>"
-fi
+log "Example:"
+log "  run-to-completion \"Fix flaky tests and verify the suite passes\""
 log ""
-log "Note: Codex CLI v0.125.0 does not expose this skill as /run-to-completion, /prompts:run-to-completion, or /use."
-log ""
-log "Claude Code import:"
-log "  @$skill_source/CLAUDE.md"
+log "If your shell cannot find it, add this to PATH:"
+log "  export PATH=\"$bin_dir:\$PATH\""
 log ""
 log "To update later, run this installer again:"
 log "  curl -fsSL https://raw.githubusercontent.com/komagata/run-to-completion/main/install.sh | bash"
