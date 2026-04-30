@@ -49,6 +49,7 @@ Useful options:
 
 ```bash
 run-to-completion --max-iterations 20 "Improve benchmark runtime below 200ms"
+run-to-completion --retry-delay 1800 --max-rate-limit-retries 12 "Run the overnight cleanup"
 run-to-completion --model opus "Implement the parser described in SPEC.md"
 run-to-completion --permission-mode acceptEdits "Refactor the CLI and update tests"
 run-to-completion --workdir /path/to/project "Ship the requested feature"
@@ -59,6 +60,8 @@ Defaults:
 - `--max-iterations 100`
 - `--claude-bin claude`
 - `--permission-mode auto`
+- `--retry-delay 3600`
+- `--max-rate-limit-retries 24`
 - `--workdir .`
 
 Environment overrides:
@@ -67,6 +70,8 @@ Environment overrides:
 - `RUN_TO_COMPLETION_CLAUDE_BIN`
 - `RUN_TO_COMPLETION_MODEL`
 - `RUN_TO_COMPLETION_PERMISSION_MODE`
+- `RUN_TO_COMPLETION_RETRY_DELAY`
+- `RUN_TO_COMPLETION_MAX_RATE_LIMIT_RETRIES`
 - `RUN_TO_COMPLETION_BIN_DIR`
 - `RUN_TO_COMPLETION_HOME`
 
@@ -93,12 +98,15 @@ Shape:
 Allowed statuses:
 
 - `continue`: more allowed work remains; the runner starts Claude again.
+- `rate_limited`: Claude reported an explicit rate-limit or usage-limit error; the runner waits and retries.
 - `complete`: success criteria are satisfied and verified.
 - `blocked`: progress requires a user decision, secret, paid service, production access, or destructive action not already authorized.
 - `unsafe`: continuing would create security, privacy, legal, financial, or operational risk.
 - `impossible`: evidence shows the goal cannot be achieved with available tools/data.
 
 A failed test, known TODO, or known next action is not `blocked`. Claude should fix it or set `continue`.
+
+The runner does not infer rate limits from vague failures. It writes `rate_limited` only when Claude output contains an explicit signal documented by Claude Code or the Claude API, such as `You've hit your session limit`, `You've hit your weekly limit`, `API Error: Server is temporarily limiting requests`, `API Error: Request rejected (429)`, or API JSON with `error.type == "rate_limit_error"`.
 
 ## Progress Files
 

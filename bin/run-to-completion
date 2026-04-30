@@ -12,10 +12,14 @@ Options:
   --model MODEL            Pass --model to claude
   --permission-mode MODE   Pass --permission-mode to claude. Default: auto
   --workdir DIR            Directory to run in. Default: current directory
+  --retry-delay SECONDS    Wait after a confirmed rate limit. Default: 3600
+  --max-rate-limit-retries N
+                           Maximum confirmed rate-limit retries. Default: 24
   --help                   Show this help
 
 The runner repeatedly invokes `claude -p` until `.run-to-completion/status.json`
-contains status complete, blocked, unsafe, or impossible.
+contains status complete, blocked, unsafe, or impossible. Confirmed rate-limit
+failures are written as rate_limited and retried after --retry-delay.
 EOF
 }
 
@@ -28,6 +32,8 @@ claude_bin="${RUN_TO_COMPLETION_CLAUDE_BIN:-claude}"
 max_iterations="${RUN_TO_COMPLETION_MAX_ITERATIONS:-100}"
 permission_mode="${RUN_TO_COMPLETION_PERMISSION_MODE:-auto}"
 model="${RUN_TO_COMPLETION_MODEL:-}"
+retry_delay="${RUN_TO_COMPLETION_RETRY_DELAY:-3600}"
+max_rate_limit_retries="${RUN_TO_COMPLETION_MAX_RATE_LIMIT_RETRIES:-24}"
 workdir="$PWD"
 goal_parts=()
 
@@ -58,6 +64,16 @@ while [ "$#" -gt 0 ]; do
       workdir="$2"
       shift 2
       ;;
+    --retry-delay)
+      [ "$#" -ge 2 ] || die "--retry-delay requires a value"
+      retry_delay="$2"
+      shift 2
+      ;;
+    --max-rate-limit-retries)
+      [ "$#" -ge 2 ] || die "--max-rate-limit-retries requires a value"
+      max_rate_limit_retries="$2"
+      shift 2
+      ;;
     --help|-h)
       usage
       exit 0
@@ -84,6 +100,8 @@ command -v "$claude_bin" >/dev/null 2>&1 || die "claude command not found: $clau
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 [[ "$max_iterations" =~ ^[0-9]+$ ]] || die "--max-iterations must be an integer"
 [ "$max_iterations" -gt 0 ] || die "--max-iterations must be greater than zero"
+[[ "$retry_delay" =~ ^[0-9]+$ ]] || die "--retry-delay must be an integer"
+[[ "$max_rate_limit_retries" =~ ^[0-9]+$ ]] || die "--max-rate-limit-retries must be an integer"
 [ -d "$workdir" ] || die "workdir does not exist: $workdir"
 workdir="$(cd "$workdir" && pwd)"
 
@@ -113,6 +131,8 @@ if [ ! -f "$status_file" ]; then
   "summary": "Not started.",
   "next_action": "Start the first iteration.",
   "evidence": [],
+  "limit_kind": null,
+  "retry_after_seconds": null,
   "updated_at": null
 }
 EOF
@@ -142,6 +162,62 @@ except Exception as e:
 PY
 }
 
+rate_limit_signal_of() {
+  python3 - "$1" <<'PY'
+import json
+import re
+import sys
+
+path = sys.argv[1]
+try:
+    text = open(path, encoding="utf-8", errors="replace").read()
+except OSError:
+    sys.exit(1)
+
+signals = [
+    ("api_rate_limit_error", r'"type"\s*:\s*"rate_limit_error"'),
+    ("claude_session_limit", r"You['’]ve hit your session limit"),
+    ("claude_weekly_limit", r"You['’]ve hit your weekly limit"),
+    ("claude_model_limit", r"You['’]ve hit your [A-Za-z0-9_.-]+ limit"),
+    ("claude_usage_limit", r'5-hour limit reached'),
+    ("claude_usage_limit", r'Usage limit reached'),
+    ("claude_temporary_throttle", r'API Error:\s*Server is temporarily limiting requests'),
+    ("claude_request_rejected_429", r'API Error:\s*Request rejected \(429\)'),
+    ("claude_code_api_rate_limit", r'API Error:\s*Rate limit reached'),
+]
+
+for line in text.splitlines():
+    line = line.strip()
+    if not line or not line.startswith("{"):
+        continue
+    try:
+        data = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    error = data.get("error")
+    if isinstance(error, dict):
+        if error.get("type") == "rate_limit_error":
+            print("api_rate_limit_error")
+            sys.exit(0)
+        if error.get("status_code") == 429 or error.get("status") == 429:
+            print("http_429")
+            sys.exit(0)
+    if data.get("type") == "rate_limit_error":
+        print("api_rate_limit_error")
+        sys.exit(0)
+    if data.get("status_code") == 429 or data.get("status") == 429:
+        print("http_429")
+        sys.exit(0)
+
+for name, pattern in signals:
+    if re.search(pattern, text, re.IGNORECASE):
+        print(name)
+        sys.exit(0)
+
+sys.exit(1)
+PY
+}
+
 make_prompt() {
   local iteration="$1"
   cat <<EOF
@@ -162,10 +238,12 @@ Runner contract:
 
 At the end of this invocation, always write valid JSON to .run-to-completion/status.json with this schema:
 {
-  "status": "continue | complete | blocked | unsafe | impossible",
+  "status": "continue | complete | blocked | unsafe | impossible | rate_limited",
   "summary": "short factual summary",
   "next_action": "next action if status is continue, or empty string otherwise",
   "evidence": ["commands, files, tests, or facts supporting the status"],
+  "limit_kind": "rate-limit signal name if status is rate_limited, otherwise null",
+  "retry_after_seconds": "retry delay if status is rate_limited, otherwise null",
   "updated_at": "ISO-8601 timestamp"
 }
 
@@ -175,6 +253,7 @@ Status rules:
 - Use "blocked" only when progress requires a user decision, unavailable secret, paid service, production access, or destructive action not already authorized.
 - Use "unsafe" only for security, privacy, legal, financial, or operational risk.
 - Use "impossible" only when evidence shows the goal cannot be achieved with the available tools/data.
+- Use "rate_limited" only when Claude receives an explicit rate-limit or usage-limit error from the provider or Claude Code.
 - A failed test, known TODO, or known next action is not blocked. Fix it or continue.
 
 This is runner iteration $iteration of $max_iterations.
@@ -186,6 +265,8 @@ printf 'run-to-completion: goal: %s\n' "$goal"
 printf 'run-to-completion: workdir: %s\n' "$workdir"
 printf 'run-to-completion: session: %s\n' "$session_id"
 
+rate_limit_retries=0
+
 for ((iteration = 1; iteration <= max_iterations; iteration++)); do
   status="$(status_of)"
   case "$status" in
@@ -195,6 +276,8 @@ for ((iteration = 1; iteration <= max_iterations; iteration++)); do
       exit 0
       ;;
     continue)
+      ;;
+    rate_limited)
       ;;
     *)
       printf 'run-to-completion: unknown status %s; treating as continue\n' "$status"
@@ -212,17 +295,51 @@ for ((iteration = 1; iteration <= max_iterations; iteration++)); do
   fi
   cmd+=("$prompt")
 
-  if ! (cd "$workdir" && "${cmd[@]}") | tee "$output_file"; then
+  if ! (cd "$workdir" && "${cmd[@]}" 2>&1) | tee "$output_file"; then
+    if limit_kind="$(rate_limit_signal_of "$output_file")"; then
+      rate_limit_retries=$((rate_limit_retries + 1))
+      cat >"$status_file" <<EOF
+{
+  "status": "rate_limited",
+  "summary": "Claude reported an explicit rate-limit or usage-limit error during runner iteration $iteration.",
+  "next_action": "Retry the same goal with the same Claude session after the configured delay.",
+  "evidence": ["Confirmed limit signal: $limit_kind", "See $output_file"],
+  "limit_kind": "$limit_kind",
+  "retry_after_seconds": $retry_delay,
+  "updated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+      printf 'run-to-completion: confirmed rate limit: %s\n' "$limit_kind"
+      if [ "$rate_limit_retries" -gt "$max_rate_limit_retries" ]; then
+        cat >"$status_file" <<EOF
+{
+  "status": "blocked",
+  "summary": "Runner reached max confirmed rate-limit retries ($max_rate_limit_retries).",
+  "next_action": "",
+  "evidence": ["Last confirmed limit signal: $limit_kind", "See $output_file"],
+  "limit_kind": "$limit_kind",
+  "retry_after_seconds": null,
+  "updated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+        die "max confirmed rate-limit retries reached"
+      fi
+      printf 'run-to-completion: waiting %s seconds before retry %d/%d\n' "$retry_delay" "$rate_limit_retries" "$max_rate_limit_retries"
+      sleep "$retry_delay"
+      continue
+    fi
     cat >"$status_file" <<EOF
 {
   "status": "blocked",
   "summary": "Claude invocation failed during runner iteration $iteration.",
   "next_action": "",
   "evidence": ["See $output_file"],
+  "limit_kind": null,
+  "retry_after_seconds": null,
   "updated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
-    die "claude invocation failed; status set to blocked"
+    die "claude invocation failed without an explicit rate-limit signal; status set to blocked"
   fi
 
   status="$(status_of)"
@@ -240,6 +357,10 @@ EOF
       ;;
     continue)
       ;;
+    rate_limited)
+      printf 'run-to-completion: Claude wrote rate_limited status; waiting %s seconds\n' "$retry_delay"
+      sleep "$retry_delay"
+      ;;
     *)
       printf 'run-to-completion: invalid status %s; continuing\n' "$status"
       ;;
@@ -252,6 +373,8 @@ cat >"$status_file" <<EOF
   "summary": "Runner reached max iterations ($max_iterations) before completion.",
   "next_action": "",
   "evidence": ["Increase --max-iterations or inspect .run-to-completion/progress.md"],
+  "limit_kind": null,
+  "retry_after_seconds": null,
   "updated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
